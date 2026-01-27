@@ -50,85 +50,85 @@ router.get('/balance-sheet', auth, (req, res) => {
   );
 });
 
+
 /* ================= CREDIT REPORT ================= */
 router.get('/credit', auth, (req, res) => {
   const date = req.query.date;
+
+  if (!date) {
+    return res.status(400).json({ message: 'Date is required' });
+  }
 
   db.query(
     `SELECT 
       t.id,
       c.name AS client,
       t.amount,
-      t.remark
+      t.remark,
+      t.type,
+      t.transaction_date
      FROM transactions t
      JOIN clients c ON c.id = t.client_id
-     WHERE t.user_id=? 
-       AND t.type='credit'
-       AND t.transaction_date=?`,
+     WHERE t.user_id = ?
+       AND t.type = 'credit'
+       AND DATE(t.transaction_date) = ?`,
     [req.userId, date],
     (err, rows) => {
-      if (err) return res.status(500).json({ message: 'DB error' });
+      if (err) {
+        console.error('CREDIT DB ERROR:', err);
+        return res.status(500).json({ message: 'DB error' });
+      }
       res.json(rows);
     }
   );
 });
+
 
 /* ================= DEBIT REPORT ================= */
 router.get('/debit', auth, (req, res) => {
   const date = req.query.date;
 
+  if (!date) {
+    return res.status(400).json({ message: 'Date is required' });
+  }
+
   db.query(
     `SELECT 
-      t.id,
-      c.name AS client,
-      t.amount,
-      t.remark
+        t.id,
+        c.name AS client,
+        t.amount,
+        t.remark,
+        t.transaction_date,
+        t.type
      FROM transactions t
      JOIN clients c ON c.id = t.client_id
-     WHERE t.user_id=? 
-       AND t.type='debit'
-       AND t.transaction_date=?`,
+     WHERE t.user_id = ?
+       AND t.type = 'debit'
+       AND t.transaction_date = ?
+     ORDER BY t.id DESC`,
     [req.userId, date],
     (err, rows) => {
-      if (err) return res.status(500).json({ message: 'DB error' });
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ message: 'DB error' });
+      }
       res.json(rows);
     }
   );
 });
 
-
-// UPDATE TRANSACTION
+//edit transaction
 router.put('/transaction/:id', auth, (req, res) => {
-  const { id } = req.params;
-  const { amount, remark } = req.body;
+  const { type, amount, remark } = req.body;
 
   db.query(
     `UPDATE transactions 
-     SET amount=?, remark=?
+     SET type=?, amount=?, remark=? 
      WHERE id=? AND user_id=?`,
-    [amount, remark, id, req.userId],
-    (err, result) => {
-      if (err) return res.status(500).json({ message: 'DB error' });
-      if (!result.affectedRows)
-        return res.status(404).json({ message: 'Transaction not found' });
-
-      res.json({ message: 'Transaction updated' });
-    }
-  );
-});
-
-
-// DELETE TRANSACTION
-router.delete('/transaction/:id', auth, (req, res) => {
-  const { id } = req.params;
-
-  db.query(
-    `DELETE FROM transactions 
-     WHERE id = ? AND user_id = ?`,
-    [id, req.userId],
+    [type, amount, remark, req.params.id, req.userId],
     (err, result) => {
       if (err) {
-        console.log(err);
+        console.error(err);
         return res.status(500).json({ message: 'DB error' });
       }
 
@@ -136,10 +136,32 @@ router.delete('/transaction/:id', auth, (req, res) => {
         return res.status(404).json({ message: 'Transaction not found' });
       }
 
-      res.json({ message: 'Transaction deleted' });
+      res.json({ message: 'Updated Successfully' });
     }
   );
 });
+
+//delete transaction
+router.delete('/transaction/:id', auth, (req, res) => {
+  db.query(
+    'DELETE FROM transactions WHERE id=? AND user_id=?',
+    [req.params.id, req.userId],
+    (err, result) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ message: 'DB error' });
+      }
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: 'Transaction not found' });
+      }
+
+      res.json({ message: 'Deleted Successfully' });
+    }
+  );
+});
+
+
 
 
 module.exports = router;
