@@ -10,8 +10,13 @@ router.get('/dashboard', auth, (req, res) => {
 
   db.query(
     `SELECT
-      SUM(CASE WHEN type='credit' THEN amount ELSE 0 END) credit,
-      SUM(CASE WHEN type='debit' THEN amount ELSE 0 END) debit
+      ROUND(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END), 4) AS credit,
+      ROUND(SUM(CASE WHEN type='debit' THEN amount ELSE 0 END), 4) AS debit,
+      ROUND(
+        SUM(CASE WHEN type='credit' THEN amount ELSE 0 END) -
+        SUM(CASE WHEN type='debit' THEN amount ELSE 0 END),
+        4
+      ) AS net
      FROM transactions
      WHERE user_id=? AND transaction_date=?`,
     [req.userId, date],
@@ -21,7 +26,7 @@ router.get('/dashboard', auth, (req, res) => {
       res.json({
         credit: rows[0].credit || 0,
         debit: rows[0].debit || 0,
-        net: (rows[0].credit || 0) - (rows[0].debit || 0)
+        net: rows[0].net || 0,
       });
     }
   );
@@ -34,10 +39,23 @@ router.get('/balance-sheet', auth, (req, res) => {
   db.query(
     `SELECT 
       c.name AS client,
-      SUM(CASE WHEN t.type='credit' THEN t.amount ELSE 0 END) credit,
-      SUM(CASE WHEN t.type='debit' THEN t.amount ELSE 0 END) debit,
-      SUM(CASE WHEN t.type='credit' THEN t.amount ELSE 0 END) -
-      SUM(CASE WHEN t.type='debit' THEN t.amount ELSE 0 END) balance
+
+      ROUND(
+        SUM(CASE WHEN t.type='credit' THEN t.amount ELSE 0 END),
+        4
+      ) AS credit,
+
+      ROUND(
+        SUM(CASE WHEN t.type='debit' THEN t.amount ELSE 0 END),
+        4
+      ) AS debit,
+
+      ROUND(
+        SUM(CASE WHEN t.type='credit' THEN t.amount ELSE 0 END) -
+        SUM(CASE WHEN t.type='debit' THEN t.amount ELSE 0 END),
+        4
+      ) AS balance
+
      FROM transactions t
      JOIN clients c ON c.id = t.client_id
      WHERE t.user_id=? AND t.transaction_date=?
@@ -49,6 +67,7 @@ router.get('/balance-sheet', auth, (req, res) => {
     }
   );
 });
+
 
 
 /* ================= CREDIT REPORT ================= */
