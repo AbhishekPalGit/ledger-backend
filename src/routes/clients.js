@@ -19,31 +19,45 @@ router.post('/', auth, (req, res) => {
   );
 });
 
+
 router.get('/:id/summary', auth, (req, res) => {
   const clientId = req.params.id;
   const userId = req.userId;
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
 
-  const date =
-    req.query.date || new Date().toISOString().slice(0, 10);
-
-  const summarySql = `
+  /* ================= OPENING BALANCE ================= */
+  const openingSql = `
     SELECT
       ROUND(
-        COALESCE(SUM(CASE WHEN type = 'credit' THEN amount END), 0),
-        4
-      ) AS totalCredit,
-      ROUND(
-        COALESCE(SUM(CASE WHEN type = 'debit' THEN amount END), 0),
-        4
-      ) AS totalDebit
+        ROUND(COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END), 0), 4)
+        -
+        ROUND(COALESCE(SUM(CASE WHEN type='debit' THEN amount ELSE 0 END), 0), 4),
+      4
+      ) AS openingBalance
+    FROM transactions
+    WHERE client_id = ?
+      AND user_id = ?
+      AND transaction_date < ?
+  `;
+
+  /* ================= DAILY TOTAL ================= */
+  const summarySql = `
+    SELECT
+      ROUND(COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END), 0), 4) AS totalCredit,
+      ROUND(COALESCE(SUM(CASE WHEN type='debit' THEN amount ELSE 0 END), 0), 4) AS totalDebit
     FROM transactions
     WHERE client_id = ?
       AND user_id = ?
       AND transaction_date = ?
   `;
 
+  /* ================= CREDIT LIST ================= */
   const creditSql = `
-    SELECT id, remark, amount, transaction_date
+    SELECT
+      id,
+      remark,
+      ROUND(amount, 4) AS amount,
+      transaction_date
     FROM transactions
     WHERE client_id = ?
       AND user_id = ?
@@ -52,8 +66,13 @@ router.get('/:id/summary', auth, (req, res) => {
     ORDER BY id DESC
   `;
 
+  /* ================= DEBIT LIST ================= */
   const debitSql = `
-    SELECT id, remark, amount, transaction_date
+    SELECT
+      id,
+      remark,
+      ROUND(amount, 4) AS amount,
+      transaction_date
     FROM transactions
     WHERE client_id = ?
       AND user_id = ?
@@ -62,35 +81,25 @@ router.get('/:id/summary', auth, (req, res) => {
     ORDER BY id DESC
   `;
 
-  db.query(summarySql, [clientId, userId, date], (err, summary) => {
-    if (err) {
-      console.error('Summary error:', err);
-      return res
-        .status(500)
-        .json({ message: 'Failed to load client summary' });
-    }
+  db.query(openingSql, [clientId, userId, date], (err, opening) => {
+    if (err) return res.status(500).json({ message: 'Opening failed' });
 
-    db.query(creditSql, [clientId, userId, date], (err, credits) => {
-      if (err) {
-        console.error('Credit error:', err);
-        return res
-          .status(500)
-          .json({ message: 'Failed to load credit records' });
-      }
+    db.query(summarySql, [clientId, userId, date], (err, summary) => {
+      if (err) return res.status(500).json({ message: 'Summary failed' });
 
-      db.query(debitSql, [clientId, userId, date], (err, debits) => {
-        if (err) {
-          console.error('Debit error:', err);
-          return res
-            .status(500)
-            .json({ message: 'Failed to load debit records' });
-        }
+      db.query(creditSql, [clientId, userId, date], (err, credits) => {
+        if (err) return res.status(500).json({ message: 'Credits failed' });
 
-        res.json({
-          totalCredit: Number(summary[0].totalCredit),
-          totalDebit: Number(summary[0].totalDebit),
-          credits,
-          debits,
+        db.query(debitSql, [clientId, userId, date], (err, debits) => {
+          if (err) return res.status(500).json({ message: 'Debits failed' });
+
+          res.json({
+            openingBalance: Number(opening[0].openingBalance),
+            totalCredit: Number(summary[0].totalCredit),
+            totalDebit: Number(summary[0].totalDebit),
+            credits,
+            debits,
+          });
         });
       });
     });
