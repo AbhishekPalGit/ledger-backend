@@ -10,12 +10,12 @@ router.get('/dashboard', auth, (req, res) => {
 
   db.query(
     `SELECT
-      ROUND(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END), 4) AS credit,
-      ROUND(SUM(CASE WHEN type='debit' THEN amount ELSE 0 END), 4) AS debit,
-      ROUND(
+      TRUNCATE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END), 3) AS credit,
+      TRUNCATE(SUM(CASE WHEN type='debit' THEN amount ELSE 0 END), 3) AS debit,
+      TRUNCATE(
         SUM(CASE WHEN type='credit' THEN amount ELSE 0 END) -
         SUM(CASE WHEN type='debit' THEN amount ELSE 0 END),
-        4
+        3
       ) AS net
      FROM transactions
      WHERE user_id=? AND transaction_date=?`,
@@ -40,20 +40,20 @@ router.get('/balance-sheet', auth, (req, res) => {
     `SELECT 
       c.name AS client,
 
-      ROUND(
+      TRUNCATE(
         SUM(CASE WHEN t.type='credit' THEN t.amount ELSE 0 END),
-        4
+        3
       ) AS credit,
 
-      ROUND(
+      TRUNCATE(
         SUM(CASE WHEN t.type='debit' THEN t.amount ELSE 0 END),
-        4
+        3
       ) AS debit,
 
-      ROUND(
+      TRUNCATE(
         SUM(CASE WHEN t.type='credit' THEN t.amount ELSE 0 END) -
         SUM(CASE WHEN t.type='debit' THEN t.amount ELSE 0 END),
-        4
+        3
       ) AS balance
 
      FROM transactions t
@@ -82,7 +82,7 @@ router.get('/credit', auth, (req, res) => {
     `SELECT 
       t.id,
       c.name AS client,
-      t.amount,
+      TRUNCATE(t.amount, 3) AS amount,
       t.remark,
       t.type,
       t.transaction_date
@@ -115,7 +115,7 @@ router.get('/debit', auth, (req, res) => {
     `SELECT 
         t.id,
         c.name AS client,
-        t.amount,
+        TRUNCATE(t.amount, 3) AS amount,
         t.remark,
         t.transaction_date,
         t.type

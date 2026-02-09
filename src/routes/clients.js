@@ -28,11 +28,11 @@ router.get('/:id/summary', auth, (req, res) => {
   /* ================= OPENING BALANCE ================= */
   const openingSql = `
     SELECT
-      ROUND(
-        ROUND(COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END), 0), 4)
+      TRUNCATE(
+        TRUNCATE(COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END), 0), 3)
         -
-        ROUND(COALESCE(SUM(CASE WHEN type='debit' THEN amount ELSE 0 END), 0), 4),
-      4
+        TRUNCATE(COALESCE(SUM(CASE WHEN type='debit' THEN amount ELSE 0 END), 0), 3),
+      3
       ) AS openingBalance
     FROM transactions
     WHERE client_id = ?
@@ -43,8 +43,8 @@ router.get('/:id/summary', auth, (req, res) => {
   /* ================= DAILY TOTAL ================= */
   const summarySql = `
     SELECT
-      ROUND(COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END), 0), 4) AS totalCredit,
-      ROUND(COALESCE(SUM(CASE WHEN type='debit' THEN amount ELSE 0 END), 0), 4) AS totalDebit
+      TRUNCATE(COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END), 0), 3) AS totalCredit,
+      TRUNCATE(COALESCE(SUM(CASE WHEN type='debit' THEN amount ELSE 0 END), 0), 3) AS totalDebit
     FROM transactions
     WHERE client_id = ?
       AND user_id = ?
@@ -56,7 +56,7 @@ router.get('/:id/summary', auth, (req, res) => {
     SELECT
       id,
       remark,
-      ROUND(amount, 4) AS amount,
+      TRUNCATE(amount, 3) AS amount,
       transaction_date
     FROM transactions
     WHERE client_id = ?
@@ -71,7 +71,7 @@ router.get('/:id/summary', auth, (req, res) => {
     SELECT
       id,
       remark,
-      ROUND(amount, 4) AS amount,
+      TRUNCATE(amount, 3) AS amount,
       transaction_date
     FROM transactions
     WHERE client_id = ?
